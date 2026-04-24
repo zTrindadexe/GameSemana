@@ -12,6 +12,13 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
 
 async function initDatabase(database: SQLite.SQLiteDatabase): Promise<void> {
   await database.execAsync(`
+    CREATE TABLE IF NOT EXISTS usuarios (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nome TEXT NOT NULL UNIQUE,
+      senha TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS indicacoes_jogos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       titulo TEXT NOT NULL,

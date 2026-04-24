@@ -22,14 +22,18 @@ import {
 import { prepararSemanaAtual } from '../services/weeklyService';
 import { GameCard } from '../components/GameCard';
 import { EmptyState } from '../components/EmptyState';
+import { VoteModal } from '../components/VoteModal';
+import { useAuth } from '../context/AuthContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Home'>;
 
 export function HomeScreen() {
   const navigation = useNavigation<Nav>();
+  const { usuario } = useAuth();
   const [indicacoes, setIndicacoes] = useState<IndicacaoJogo[]>([]);
   const [busca, setBusca] = useState('');
   const [carregando, setCarregando] = useState(false);
+  const [indicacaoVotando, setIndicacaoVotando] = useState<IndicacaoJogo | null>(null);
 
   const carregarDados = useCallback(async () => {
     setCarregando(true);
@@ -61,50 +65,16 @@ export function HomeScreen() {
     return () => clearTimeout(timer);
   }, [busca]);
 
-  const handleVotar = (item: IndicacaoJogo) => {
-    let nomeJogador = '';
-    let motivoJogador = '';
-
-    Alert.prompt(
-      'Votar em ' + item.titulo,
-      'Qual é o seu nome?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Próximo',
-          onPress: (nome) => {
-            if (!nome?.trim()) {
-              Alert.alert('Nome obrigatório', 'Informe seu nome para votar.');
-              return;
-            }
-            nomeJogador = nome.trim();
-            Alert.prompt(
-              'Motivo (opcional)',
-              'Por que quer jogar ' + item.titulo + '?',
-              [
-                {
-                  text: 'Votar',
-                  onPress: async (motivo) => {
-                    motivoJogador = motivo?.trim() ?? '';
-                    try {
-                      await votarEmIndicacao(item.id, {
-                        nome: nomeJogador,
-                        motivo: motivoJogador || undefined,
-                      });
-                      carregarDados();
-                    } catch (e: any) {
-                      Alert.alert('Ops!', e.message ?? 'Erro ao votar.');
-                    }
-                  },
-                },
-              ],
-              'plain-text'
-            );
-          },
-        },
-      ],
-      'plain-text'
-    );
+  const handleConfirmarVoto = async (motivo?: string) => {
+    if (!indicacaoVotando || !usuario) return;
+    try {
+      await votarEmIndicacao(indicacaoVotando.id, { nome: usuario.nome, motivo });
+      setIndicacaoVotando(null);
+      carregarDados();
+    } catch (e: any) {
+      setIndicacaoVotando(null);
+      Alert.alert('Ops!', e.message ?? 'Erro ao votar.');
+    }
   };
 
   const indicacoesOrdenadas = [...indicacoes].sort((a, b) => {
@@ -126,24 +96,16 @@ export function HomeScreen() {
         <View style={styles.acoesTopo}>
           <TouchableOpacity
             style={styles.botaoAcao}
-            onPress={() => navigation.navigate('IndicacaoForm')}
-          >
-            <Text style={styles.botaoAcaoText}>+ Indicar jogo</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.botaoAcao, styles.botaoSecundario]}
             onPress={() => navigation.navigate('ApiSearch')}
           >
-            <Text style={[styles.botaoAcaoText, styles.botaoSecundarioText]}>
-              🔍 Buscar na API
-            </Text>
+            <Text style={styles.botaoAcaoText}>🔍 Indicar jogo</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.botaoAcao, styles.botaoSecundario]}
             onPress={() => navigation.navigate('History')}
           >
             <Text style={[styles.botaoAcaoText, styles.botaoSecundarioText]}>
-              📋 Histórico
+              📅 Histórico
             </Text>
           </TouchableOpacity>
         </View>
@@ -154,7 +116,7 @@ export function HomeScreen() {
           mensagem={
             busca
               ? 'Nenhum jogo encontrado para essa busca.'
-              : 'Nenhum jogo indicado esta semana.\nToque em "+ Indicar jogo" para começar!'
+              : 'Nenhum jogo indicado esta semana.\nToque em "Indicar jogo" para buscar na API!'
           }
         />
       ) : (
@@ -168,7 +130,7 @@ export function HomeScreen() {
               onPress={() =>
                 navigation.navigate('IndicacaoDetails', { id: item.id })
               }
-              onVotar={() => handleVotar(item)}
+              onVotar={() => setIndicacaoVotando(item)}
             />
           )}
           contentContainerStyle={styles.lista}
@@ -176,6 +138,14 @@ export function HomeScreen() {
           refreshing={carregando}
         />
       )}
+
+      <VoteModal
+        visible={indicacaoVotando !== null}
+        titulo={indicacaoVotando?.titulo ?? ''}
+        nomeUsuario={usuario?.nome ?? ''}
+        onConfirm={handleConfirmarVoto}
+        onCancel={() => setIndicacaoVotando(null)}
+      />
     </SafeAreaView>
   );
 }

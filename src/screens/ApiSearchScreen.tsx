@@ -9,6 +9,8 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  ScrollView,
+  Linking,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -22,65 +24,60 @@ import { EmptyState } from '../components/EmptyState';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ApiSearch'>;
 
+type EstadoBusca = 'idle' | 'buscando' | 'resultado' | 'erro_chave' | 'erro_rede' | 'vazio';
+
 export function ApiSearchScreen() {
   const navigation = useNavigation<Nav>();
   const [busca, setBusca] = useState('');
   const [resultados, setResultados] = useState<GameApiResult[]>([]);
-  const [buscando, setBuscando] = useState(false);
-  const [buscou, setBuscou] = useState(false);
+  const [estado, setEstado] = useState<EstadoBusca>('idle');
 
   const handleBuscar = async () => {
     if (!busca.trim()) return;
-    setBuscando(true);
-    setBuscou(false);
+    setEstado('buscando');
+    setResultados([]);
     try {
       const res = await searchGames(busca.trim());
       setResultados(res);
-      setBuscou(true);
-    } finally {
-      setBuscando(false);
+      setEstado(res.length > 0 ? 'resultado' : 'vazio');
+    } catch (e: any) {
+      if (e.message === 'CHAVE_NAO_CONFIGURADA') {
+        setEstado('erro_chave');
+      } else {
+        setEstado('erro_rede');
+      }
     }
   };
 
   const handleImportar = (jogo: GameApiResult) => {
-    Alert.prompt(
-      'Seu nome',
-      `Quer votar em "${jogo.titulo}" ao importar?`,
+    Alert.alert(
+      'Indicar jogo',
+      `Deseja adicionar "${jogo.titulo}" à votação da semana?`,
       [
-        {
-          text: 'Importar sem votar',
-          onPress: () => importar(jogo, ''),
-        },
-        {
-          text: 'Votar',
-          onPress: (nome) => importar(jogo, nome ?? ''),
-        },
-      ],
-      'plain-text'
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Indicar', onPress: () => importar(jogo) },
+      ]
     );
   };
 
-  const importar = async (jogo: GameApiResult, nomeJogador: string) => {
-    const temJogador = nomeJogador.trim().length > 0;
+  const importar = async (jogo: GameApiResult) => {
     const now = new Date().toISOString();
     try {
       await createIndicacao({
         titulo: jogo.titulo,
-        genero: 'Não informado',
-        votos: temJogador ? 1 : 0,
+        genero: jogo.genero,
+        votos: 0,
         observacao: undefined,
-        jogadoresJson: temJogador
-          ? JSON.stringify([{ nome: nomeJogador.trim() }])
-          : '[]',
+        jogadoresJson: '[]',
         imagemUri: jogo.imagemUri,
         destaque: false,
         origem: 'api',
-        cheapSharkGameId: jogo.cheapSharkGameId,
+        cheapSharkGameId: jogo.externalId,
         createdAt: now,
         updatedAt: now,
       });
       Alert.alert(
-        'Importado!',
+        'Indicado!',
         `"${jogo.titulo}" foi adicionado à votação da semana.`,
         [{ text: 'Ver indicações', onPress: () => navigation.navigate('Home') }]
       );
@@ -92,34 +89,82 @@ export function ApiSearchScreen() {
   const renderItem = ({ item }: { item: GameApiResult }) => (
     <View style={styles.card}>
       {item.imagemUri ? (
-        <Image
-          source={{ uri: item.imagemUri }}
-          style={styles.thumb}
-          resizeMode="cover"
-        />
+        <Image source={{ uri: item.imagemUri }} style={styles.thumb} resizeMode="cover" />
       ) : (
         <View style={[styles.thumb, styles.semThumb]}>
           <Text style={styles.semThumbIcon}>🎮</Text>
         </View>
       )}
       <View style={styles.cardInfo}>
-        <Text style={styles.cardTitulo} numberOfLines={2}>
-          {item.titulo}
-        </Text>
-        {item.precoReferencia && (
-          <Text style={styles.cardPreco}>
-            A partir de R$ {parseFloat(item.precoReferencia).toFixed(2).replace('.', ',')}
-          </Text>
-        )}
-        <TouchableOpacity
-          style={styles.botaoImportar}
-          onPress={() => handleImportar(item)}
-        >
+        <Text style={styles.cardTitulo} numberOfLines={2}>{item.titulo}</Text>
+        <Text style={styles.cardGenero} numberOfLines={1}>{item.genero}</Text>
+        <TouchableOpacity style={styles.botaoImportar} onPress={() => handleImportar(item)}>
           <Text style={styles.botaoImportarText}>+ Indicar para votação</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
+
+  const renderConteudo = () => {
+    if (estado === 'buscando') {
+      return <ActivityIndicator size="large" color="#6c63ff" style={styles.spinner} />;
+    }
+
+    if (estado === 'erro_chave') {
+      return (
+        <ScrollView contentContainerStyle={styles.erroContainer}>
+          <Text style={styles.erroIcon}>🔑</Text>
+          <Text style={styles.erroTitulo}>Chave da API não configurada</Text>
+          <Text style={styles.erroDescricao}>
+            Para usar a busca de jogos, você precisa de uma chave gratuita da RAWG.
+          </Text>
+          <View style={styles.passos}>
+            <Text style={styles.passoTitulo}>Como configurar:</Text>
+            <Text style={styles.passo}>1. Acesse rawg.io/apidocs e crie uma conta gratuita</Text>
+            <Text style={styles.passo}>2. Copie sua API Key</Text>
+            <Text style={styles.passo}>3. Abra o arquivo:</Text>
+            <Text style={styles.codigo}>src/config/apiConfig.ts</Text>
+            <Text style={styles.passo}>4. Substitua 'SUA_CHAVE_AQUI' pela sua chave</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.botaoLink}
+            onPress={() => Linking.openURL('https://rawg.io/apidocs')}
+          >
+            <Text style={styles.botaoLinkText}>Abrir rawg.io/apidocs</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      );
+    }
+
+    if (estado === 'erro_rede') {
+      return (
+        <EmptyState
+          mensagem={'Erro ao conectar com a API.\nVerifique sua conexão e tente novamente.'}
+          emoji="📡"
+        />
+      );
+    }
+
+    if (estado === 'vazio') {
+      return (
+        <EmptyState
+          mensagem="Nenhum jogo encontrado para esse termo.\nTente um nome diferente."
+          emoji="🔍"
+        />
+      );
+    }
+
+    if (estado === 'idle') {
+      return (
+        <EmptyState
+          mensagem="Digite o nome de um jogo e toque em Buscar."
+          emoji="🕹️"
+        />
+      );
+    }
+
+    return null;
+  };
 
   return (
     <View style={styles.container}>
@@ -136,43 +181,23 @@ export function ApiSearchScreen() {
         <PrimaryButton
           title="Buscar"
           onPress={handleBuscar}
-          loading={buscando}
+          loading={estado === 'buscando'}
           style={styles.botaoBuscar}
         />
       </View>
 
-      <Text style={styles.aviso}>
-        Resultados fornecidos pela CheapShark (jogos digitais em oferta).
-      </Text>
+      <Text style={styles.aviso}>Catálogo fornecido pela RAWG — mais de 500 mil jogos.</Text>
 
-      {buscando && (
-        <ActivityIndicator
-          size="large"
-          color="#6c63ff"
-          style={styles.spinner}
+      {estado === 'resultado' ? (
+        <FlatList
+          data={resultados}
+          keyExtractor={(item) => item.externalId}
+          renderItem={renderItem}
+          contentContainerStyle={styles.lista}
         />
+      ) : (
+        renderConteudo()
       )}
-
-      {!buscando && buscou && resultados.length === 0 && (
-        <EmptyState
-          mensagem="Nenhum jogo encontrado.\nTente outro termo ou verifique sua conexão."
-          emoji="🔍"
-        />
-      )}
-
-      {!buscando && !buscou && (
-        <EmptyState
-          mensagem="Digite o nome de um jogo e toque em Buscar."
-          emoji="🕹️"
-        />
-      )}
-
-      <FlatList
-        data={resultados}
-        keyExtractor={(item) => item.cheapSharkGameId}
-        renderItem={renderItem}
-        contentContainerStyle={styles.lista}
-      />
     </View>
   );
 }
@@ -221,10 +246,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 2,
   },
-  thumb: {
-    width: 90,
-    height: 90,
-  },
+  thumb: { width: 90, height: 90 },
   semThumb: {
     backgroundColor: '#e0e0e0',
     alignItems: 'center',
@@ -240,11 +262,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#1a1a2e',
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  cardPreco: { fontSize: 12, color: '#4caf50', fontWeight: '600' },
+  cardGenero: { fontSize: 12, color: '#888', marginBottom: 4 },
   botaoImportar: {
-    marginTop: 8,
+    marginTop: 6,
     backgroundColor: '#6c63ff',
     borderRadius: 6,
     paddingVertical: 6,
@@ -252,4 +274,58 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   botaoImportarText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  erroContainer: {
+    padding: 28,
+    alignItems: 'center',
+  },
+  erroIcon: { fontSize: 48, marginBottom: 12 },
+  erroTitulo: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1a1a2e',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  erroDescricao: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 21,
+  },
+  passos: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    width: '100%',
+    marginBottom: 20,
+  },
+  passoTitulo: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1a1a2e',
+    marginBottom: 10,
+  },
+  passo: {
+    fontSize: 13,
+    color: '#444',
+    marginBottom: 6,
+    lineHeight: 20,
+  },
+  codigo: {
+    fontFamily: 'monospace',
+    fontSize: 12,
+    backgroundColor: '#f0f0f0',
+    padding: 8,
+    borderRadius: 6,
+    color: '#6c63ff',
+    marginBottom: 6,
+  },
+  botaoLink: {
+    backgroundColor: '#6c63ff',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  botaoLinkText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });

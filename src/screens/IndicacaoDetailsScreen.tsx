@@ -20,6 +20,8 @@ import {
 import { parseJogadores } from '../utils/jsonUtils';
 import { formatarData } from '../utils/dateUtils';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { VoteModal } from '../components/VoteModal';
+import { useAuth } from '../context/AuthContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'IndicacaoDetails'>;
 type Route = RouteProp<RootStackParamList, 'IndicacaoDetails'>;
@@ -29,7 +31,9 @@ export function IndicacaoDetailsScreen() {
   const route = useRoute<Route>();
   const { id } = route.params;
 
+  const { usuario } = useAuth();
   const [indicacao, setIndicacao] = useState<IndicacaoJogo | null>(null);
+  const [modalVotoVisivel, setModalVotoVisivel] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -37,48 +41,17 @@ export function IndicacaoDetailsScreen() {
     }, [id])
   );
 
-  const handleVotar = () => {
-    if (!indicacao) return;
-
-    Alert.prompt(
-      'Votar em ' + indicacao.titulo,
-      'Qual é o seu nome?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Próximo',
-          onPress: (nome) => {
-            if (!nome?.trim()) {
-              Alert.alert('Nome obrigatório', 'Informe seu nome para votar.');
-              return;
-            }
-            Alert.prompt(
-              'Motivo (opcional)',
-              'Por que quer jogar?',
-              [
-                {
-                  text: 'Votar',
-                  onPress: async (motivo) => {
-                    try {
-                      await votarEmIndicacao(id, {
-                        nome: nome.trim(),
-                        motivo: motivo?.trim() || undefined,
-                      });
-                      const atualizado = await getIndicacaoById(id);
-                      setIndicacao(atualizado);
-                    } catch (e: any) {
-                      Alert.alert('Ops!', e.message ?? 'Erro ao votar.');
-                    }
-                  },
-                },
-              ],
-              'plain-text'
-            );
-          },
-        },
-      ],
-      'plain-text'
-    );
+  const handleConfirmarVoto = async (motivo?: string) => {
+    if (!usuario) return;
+    try {
+      await votarEmIndicacao(id, { nome: usuario.nome, motivo });
+      setModalVotoVisivel(false);
+      const atualizado = await getIndicacaoById(id);
+      setIndicacao(atualizado);
+    } catch (e: any) {
+      setModalVotoVisivel(false);
+      Alert.alert('Ops!', e.message ?? 'Erro ao votar.');
+    }
   };
 
   const handleExcluir = () => {
@@ -110,93 +83,103 @@ export function IndicacaoDetailsScreen() {
   const jogadores: Jogador[] = parseJogadores(indicacao.jogadoresJson);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {indicacao.destaque && (
-        <View style={styles.destaqueBanner}>
-          <Text style={styles.destaqueText}>🔥 Destaque da semana anterior</Text>
-        </View>
-      )}
+    <>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        {indicacao.destaque && (
+          <View style={styles.destaqueBanner}>
+            <Text style={styles.destaqueText}>🔥 Destaque da semana anterior</Text>
+          </View>
+        )}
 
-      {indicacao.imagemUri ? (
-        <Image
-          source={{ uri: indicacao.imagemUri }}
-          style={styles.imagem}
-          resizeMode="cover"
-        />
-      ) : (
-        <View style={[styles.imagem, styles.semImagem]}>
-          <Text style={styles.semImagemIcon}>🎮</Text>
-        </View>
-      )}
-
-      <Text style={styles.titulo}>{indicacao.titulo}</Text>
-      <Text style={styles.genero}>{indicacao.genero}</Text>
-
-      <View style={styles.votosContainer}>
-        <Text style={styles.votosNumero}>{indicacao.votos}</Text>
-        <Text style={styles.votosLabel}>{indicacao.votos === 1 ? 'voto' : 'votos'}</Text>
-      </View>
-
-      {indicacao.observacao ? (
-        <View style={styles.secao}>
-          <Text style={styles.secaoTitulo}>Observação</Text>
-          <Text style={styles.secaoTexto}>{indicacao.observacao}</Text>
-        </View>
-      ) : null}
-
-      <View style={styles.secao}>
-        <Text style={styles.secaoTitulo}>
-          Quem quer jogar ({jogadores.length})
-        </Text>
-        {jogadores.length === 0 ? (
-          <Text style={styles.semJogadores}>Ninguém votou ainda. Seja o primeiro!</Text>
+        {indicacao.imagemUri ? (
+          <Image
+            source={{ uri: indicacao.imagemUri }}
+            style={styles.imagem}
+            resizeMode="cover"
+          />
         ) : (
-          jogadores.map((j, i) => (
-            <View key={i} style={styles.jogadorCard}>
-              <Text style={styles.jogadorNome}>👤 {j.nome}</Text>
-              {j.motivo ? (
-                <Text style={styles.jogadorMotivo}>{j.motivo}</Text>
-              ) : null}
-            </View>
-          ))
+          <View style={[styles.imagem, styles.semImagem]}>
+            <Text style={styles.semImagemIcon}>🎮</Text>
+          </View>
         )}
-      </View>
 
-      <View style={styles.secao}>
-        <Text style={styles.secaoTitulo}>Informações</Text>
-        <Text style={styles.infoLinha}>
-          Origem: <Text style={styles.infoValor}>{indicacao.origem === 'api' ? 'Busca na API' : 'Manual'}</Text>
-        </Text>
-        <Text style={styles.infoLinha}>
-          Criado em: <Text style={styles.infoValor}>{formatarData(indicacao.createdAt)}</Text>
-        </Text>
-        {indicacao.cheapSharkGameId && (
-          <Text style={styles.infoLinha}>
-            ID CheapShark: <Text style={styles.infoValor}>{indicacao.cheapSharkGameId}</Text>
+        <Text style={styles.titulo}>{indicacao.titulo}</Text>
+        <Text style={styles.genero}>{indicacao.genero}</Text>
+
+        <View style={styles.votosContainer}>
+          <Text style={styles.votosNumero}>{indicacao.votos}</Text>
+          <Text style={styles.votosLabel}>{indicacao.votos === 1 ? 'voto' : 'votos'}</Text>
+        </View>
+
+        {indicacao.observacao ? (
+          <View style={styles.secao}>
+            <Text style={styles.secaoTitulo}>Observação</Text>
+            <Text style={styles.secaoTexto}>{indicacao.observacao}</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.secao}>
+          <Text style={styles.secaoTitulo}>
+            Quem quer jogar ({jogadores.length})
           </Text>
-        )}
-      </View>
+          {jogadores.length === 0 ? (
+            <Text style={styles.semJogadores}>Ninguém votou ainda. Seja o primeiro!</Text>
+          ) : (
+            jogadores.map((j, i) => (
+              <View key={i} style={styles.jogadorCard}>
+                <Text style={styles.jogadorNome}>👤 {j.nome}</Text>
+                {j.motivo ? (
+                  <Text style={styles.jogadorMotivo}>{j.motivo}</Text>
+                ) : null}
+              </View>
+            ))
+          )}
+        </View>
 
-      <View style={styles.acoes}>
-        <PrimaryButton
-          title="Votar"
-          onPress={handleVotar}
-          style={styles.botao}
-        />
-        <PrimaryButton
-          title="Editar"
-          onPress={() => navigation.navigate('IndicacaoForm', { id })}
-          variant="secondary"
-          style={styles.botao}
-        />
-        <PrimaryButton
-          title="Excluir"
-          onPress={handleExcluir}
-          variant="danger"
-          style={styles.botao}
-        />
-      </View>
-    </ScrollView>
+        <View style={styles.secao}>
+          <Text style={styles.secaoTitulo}>Informações</Text>
+          <Text style={styles.infoLinha}>
+            Origem: <Text style={styles.infoValor}>{indicacao.origem === 'api' ? 'Busca na API' : 'Manual'}</Text>
+          </Text>
+          <Text style={styles.infoLinha}>
+            Criado em: <Text style={styles.infoValor}>{formatarData(indicacao.createdAt)}</Text>
+          </Text>
+          {indicacao.cheapSharkGameId && (
+            <Text style={styles.infoLinha}>
+              ID CheapShark: <Text style={styles.infoValor}>{indicacao.cheapSharkGameId}</Text>
+            </Text>
+          )}
+        </View>
+
+        <View style={styles.acoes}>
+          <PrimaryButton
+            title="Votar"
+            onPress={() => setModalVotoVisivel(true)}
+            style={styles.botao}
+          />
+          <PrimaryButton
+            title="Editar"
+            onPress={() => navigation.navigate('IndicacaoForm', { id })}
+            variant="secondary"
+            style={styles.botao}
+          />
+          <PrimaryButton
+            title="Excluir"
+            onPress={handleExcluir}
+            variant="danger"
+            style={styles.botao}
+          />
+        </View>
+      </ScrollView>
+
+      <VoteModal
+        visible={modalVotoVisivel}
+        titulo={indicacao.titulo}
+        nomeUsuario={usuario?.nome ?? ''}
+        onConfirm={handleConfirmarVoto}
+        onCancel={() => setModalVotoVisivel(false)}
+      />
+    </>
   );
 }
 

@@ -1,16 +1,20 @@
-export type CheapSharkGameResponse = {
-  gameID: string;
-  steamAppID: string | null;
-  cheapest: string;
-  cheapestDealID: string;
-  external: string;
-  internalName: string;
-  thumb: string;
+export type RawgGame = {
+  id: number;
+  name: string;
+  background_image: string | null;
+  genres: { id: number; name: string }[];
+  rating: number;
+  released: string | null;
+};
+
+export type RawgResponse = {
+  count: number;
+  results: RawgGame[];
 };
 
 export type GameApiResult = {
-  cheapSharkGameId: string;
+  externalId: string;
   titulo: string;
   imagemUri?: string;
-  precoReferencia?: string;
+  genero: string;
 };

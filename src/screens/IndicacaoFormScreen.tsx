@@ -66,7 +66,6 @@ export function IndicacaoFormScreen() {
           genero: genero.trim() || 'Não informado',
           observacao: observacao.trim() || undefined,
           imagemUri: imagemUri.trim() || undefined,
-          updatedAt: now,
         });
         Alert.alert('Salvo!', 'Indicação atualizada com sucesso.', [
           { text: 'OK', onPress: () => navigation.goBack() },

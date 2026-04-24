@@ -74,24 +74,24 @@ export async function getIndicacaoById(id: number): Promise<IndicacaoJogo | null
 
 export async function updateIndicacao(
   id: number,
-  dados: Partial<Pick<IndicacaoJogo, 'titulo' | 'genero' | 'observacao' | 'imagemUri' | 'updatedAt'>>
+  dados: Pick<IndicacaoJogo, 'titulo' | 'genero' | 'observacao' | 'imagemUri'>
 ): Promise<void> {
   const db = await getDatabase();
   const now = new Date().toISOString();
   await db.runAsync(
     `UPDATE indicacoes_jogos
-     SET titulo = COALESCE(?, titulo),
-         genero = COALESCE(?, genero),
-         observacao = COALESCE(?, observacao),
-         imagem_uri = COALESCE(?, imagem_uri),
+     SET titulo = ?,
+         genero = ?,
+         observacao = ?,
+         imagem_uri = ?,
          updated_at = ?
      WHERE id = ?`,
     [
-      dados.titulo ?? null,
-      dados.genero ?? null,
+      dados.titulo,
+      dados.genero,
       dados.observacao ?? null,
       dados.imagemUri ?? null,
-      dados.updatedAt ?? now,
+      now,
       id,
     ]
   );
@@ -203,4 +203,37 @@ export async function getHistoricoIndicacoes(): Promise<IndicacaoJogo[]> {
     [inicio]
   );
   return rows.map(rowToIndicacao);
+}
+
+export type CampeaoSemanal = {
+  semanaInicio: string;
+  campeao: IndicacaoJogo;
+  totalIndicacoes: number;
+};
+
+export async function getHistoricoSemanal(): Promise<CampeaoSemanal[]> {
+  const todos = await getHistoricoIndicacoes();
+  if (todos.length === 0) return [];
+
+  const porSemana = new Map<string, IndicacaoJogo[]>();
+  for (const ind of todos) {
+    const d = new Date(ind.createdAt);
+    const dia = d.getDay();
+    const diff = dia === 0 ? -6 : 1 - dia;
+    const segunda = new Date(d);
+    segunda.setDate(segunda.getDate() + diff);
+    segunda.setHours(0, 0, 0, 0);
+    const chave = segunda.toISOString();
+    if (!porSemana.has(chave)) porSemana.set(chave, []);
+    porSemana.get(chave)!.push(ind);
+  }
+
+  return Array.from(porSemana.entries())
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([semanaInicio, indicacoes]) => {
+      const campeao = indicacoes.reduce((melhor, atual) =>
+        atual.votos > melhor.votos ? atual : melhor
+      );
+      return { semanaInicio, campeao, totalIndicacoes: indicacoes.length };
+    });
 }
