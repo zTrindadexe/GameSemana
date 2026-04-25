@@ -21,6 +21,8 @@ import { searchGames } from '../services/gameApiService';
 import { createIndicacao } from '../database/indicacaoJogoRepository';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { EmptyState } from '../components/EmptyState';
+import { VoteModal } from '../components/VoteModal';
+import { useAuth } from '../context/AuthContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ApiSearch'>;
 
@@ -28,9 +30,11 @@ type EstadoBusca = 'idle' | 'buscando' | 'resultado' | 'erro_chave' | 'erro_rede
 
 export function ApiSearchScreen() {
   const navigation = useNavigation<Nav>();
+  const { usuario } = useAuth();
   const [busca, setBusca] = useState('');
   const [resultados, setResultados] = useState<GameApiResult[]>([]);
   const [estado, setEstado] = useState<EstadoBusca>('idle');
+  const [jogoSelecionado, setJogoSelecionado] = useState<GameApiResult | null>(null);
 
   const handleBuscar = async () => {
     if (!busca.trim()) return;
@@ -49,26 +53,19 @@ export function ApiSearchScreen() {
     }
   };
 
-  const handleImportar = (jogo: GameApiResult) => {
-    Alert.alert(
-      'Indicar jogo',
-      `Deseja adicionar "${jogo.titulo}" à votação da semana?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Indicar', onPress: () => importar(jogo) },
-      ]
-    );
-  };
-
-  const importar = async (jogo: GameApiResult) => {
+  const handleConfirmarImport = async (motivo?: string) => {
+    if (!jogoSelecionado) return;
+    const jogo = jogoSelecionado;
     const now = new Date().toISOString();
+    const nomeUsuario = usuario?.nome ?? 'Anônimo';
+    setJogoSelecionado(null);
     try {
       await createIndicacao({
         titulo: jogo.titulo,
         genero: jogo.genero,
-        votos: 0,
+        votos: 1,
         observacao: undefined,
-        jogadoresJson: '[]',
+        jogadoresJson: JSON.stringify([{ nome: nomeUsuario, motivo: motivo || undefined }]),
         imagemUri: jogo.imagemUri,
         destaque: false,
         origem: 'api',
@@ -98,7 +95,7 @@ export function ApiSearchScreen() {
       <View style={styles.cardInfo}>
         <Text style={styles.cardTitulo} numberOfLines={2}>{item.titulo}</Text>
         <Text style={styles.cardGenero} numberOfLines={1}>{item.genero}</Text>
-        <TouchableOpacity style={styles.botaoImportar} onPress={() => handleImportar(item)}>
+        <TouchableOpacity style={styles.botaoImportar} onPress={() => setJogoSelecionado(item)}>
           <Text style={styles.botaoImportarText}>+ Indicar para votação</Text>
         </TouchableOpacity>
       </View>
@@ -198,6 +195,17 @@ export function ApiSearchScreen() {
       ) : (
         renderConteudo()
       )}
+
+      <VoteModal
+        visible={jogoSelecionado !== null}
+        titulo={jogoSelecionado?.titulo ?? ''}
+        nomeUsuario={usuario?.nome ?? ''}
+        onConfirm={handleConfirmarImport}
+        onCancel={() => setJogoSelecionado(null)}
+        labelTitulo="Indicar jogo"
+        labelUsuario="Indicando como"
+        labelBotaoConfirmar="Indicar"
+      />
     </View>
   );
 }

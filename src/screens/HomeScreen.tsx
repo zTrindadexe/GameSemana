@@ -88,7 +88,7 @@ export function HomeScreen() {
       <View style={styles.header}>
         <TextInput
           style={styles.busca}
-          placeholder="Buscar por título ou gênero..."
+          placeholder="Buscar por título ou gênero no ranking..."
           placeholderTextColor="#aaa"
           value={busca}
           onChangeText={setBusca}
@@ -98,7 +98,13 @@ export function HomeScreen() {
             style={styles.botaoAcao}
             onPress={() => navigation.navigate('ApiSearch')}
           >
-            <Text style={styles.botaoAcaoText}>🔍 Indicar jogo</Text>
+            <Text style={styles.botaoAcaoText}>🔍 Buscar na API</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.botaoAcao}
+            onPress={() => navigation.navigate('IndicacaoForm', undefined)}
+          >
+            <Text style={styles.botaoAcaoText}>📝 Indicar offline</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.botaoAcao, styles.botaoSecundario]}
@@ -116,7 +122,7 @@ export function HomeScreen() {
           mensagem={
             busca
               ? 'Nenhum jogo encontrado para essa busca.'
-              : 'Nenhum jogo indicado esta semana.\nToque em "Indicar jogo" para buscar na API!'
+              : 'Nenhum jogo indicado esta semana.\nBusque na API ou crie uma indicação offline!'
           }
         />
       ) : (

@@ -90,7 +90,9 @@ Senhas armazenadas localmente no SQLite. Acesso ao app restrito a usuários prev
 - Botão de logout disponível em todas as telas principais
 
 ### CRUD de Indicações
-- **Criar** indicação pesquisando pelo nome na RAWG API e importando para a votação da semana
+- **Criar** indicação de duas formas:
+  - **Buscar na API** — pesquisa na RAWG API e importa título, gênero e imagem automaticamente
+  - **Indicar offline** — formulário local com nome do jogo e motivo, funciona sem internet; entra com 1 voto do usuário logado
 - **Listar** indicações da semana atual com ranking por votos
 - **Editar** título, gênero, observação e URL de imagem
 - **Excluir** indicação

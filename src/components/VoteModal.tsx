@@ -18,9 +18,12 @@ type Props = {
   nomeUsuario: string;
   onConfirm: (motivo?: string) => Promise<void>;
   onCancel: () => void;
+  labelTitulo?: string;
+  labelUsuario?: string;
+  labelBotaoConfirmar?: string;
 };
 
-export function VoteModal({ visible, titulo, nomeUsuario, onConfirm, onCancel }: Props) {
+export function VoteModal({ visible, titulo, nomeUsuario, onConfirm, onCancel, labelTitulo = 'Votar em', labelUsuario = 'Votando como', labelBotaoConfirmar = 'Votar' }: Props) {
   const [motivo, setMotivo] = useState('');
   const [salvando, setSalvando] = useState(false);
 
@@ -45,11 +48,11 @@ export function VoteModal({ visible, titulo, nomeUsuario, onConfirm, onCancel }:
         <View style={styles.overlay}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <View style={styles.card}>
-              <Text style={styles.label}>Votar em</Text>
+              <Text style={styles.label}>{labelTitulo}</Text>
               <Text style={styles.jogo} numberOfLines={2}>{titulo}</Text>
 
               <View style={styles.usuarioRow}>
-                <Text style={styles.usuarioLabel}>Votando como</Text>
+                <Text style={styles.usuarioLabel}>{labelUsuario}</Text>
                 <Text style={styles.usuarioNome}>{nomeUsuario}</Text>
               </View>
 
@@ -74,7 +77,7 @@ export function VoteModal({ visible, titulo, nomeUsuario, onConfirm, onCancel }:
                   disabled={salvando}
                 />
                 <PrimaryButton
-                  title="Votar"
+                  title={labelBotaoConfirmar}
                   onPress={handleConfirm}
                   loading={salvando}
                   style={styles.botao}
